@@ -2,7 +2,9 @@ use bevy::{prelude::*, window::PrimaryWindow};
 
 const PARTICLE_RADIUS: f32 = 5.0;
 const GROW_SPEED: f32 = 2.0;
-const MOVE_THRESHOLD: f32 = 1.0;
+const SHRINK_SPEED: f32 = 3.0;
+const MOVE_THRESHOLD: f32 = 0.1;
+const MIN_SCALE: f32 = 1.0;
 
 fn main() {
     App::new()
@@ -13,10 +15,21 @@ fn main() {
         .run();
 }
 
-#[derive(Resource, Default)]
+#[derive(Resource)]
 struct PourState {
     last_pos: Option<Vec2>,
     active_circle: Option<Entity>,
+    current_scale: f32,
+}
+
+impl Default for PourState {
+    fn default() -> Self {
+        Self {
+            last_pos: None,
+            active_circle: None,
+            current_scale: MIN_SCALE,
+        }
+    }
 }
 
 fn setup(
@@ -52,9 +65,10 @@ fn pour_milk(
     let (camera, camera_transform) = camera.single().unwrap();
 
     if !mouse_button.pressed(MouseButton::Left) {
-        // Released — leave the circle on screen, reset state
+        // Released — leave circle on screen, reset state but keep scale
         pour.active_circle = None;
         pour.last_pos = None;
+        pour.current_scale = MIN_SCALE;
         return;
     }
 
@@ -66,7 +80,8 @@ fn pour_milk(
         let entity = commands.spawn((
             Mesh2d(meshes.add(Circle::new(PARTICLE_RADIUS))),
             MeshMaterial2d(materials.add(Color::WHITE)),
-            Transform::from_xyz(world_pos.x, world_pos.y, 0.0),
+            Transform::from_xyz(world_pos.x, world_pos.y, 0.0)
+                .with_scale(Vec3::splat(pour.current_scale)),
         )).id();
         pour.active_circle = Some(entity);
         pour.last_pos = Some(world_pos);
@@ -78,17 +93,22 @@ fn pour_milk(
         .unwrap_or(false);
 
     if moving {
-        // Deposit current circle where it is, spawn fresh small one at cursor
+        // Shrink scale, spawn new circle at cursor inheriting current scale
+        pour.current_scale = (pour.current_scale - SHRINK_SPEED * time.delta_secs()).max(MIN_SCALE);
+
         let new_entity = commands.spawn((
             Mesh2d(meshes.add(Circle::new(PARTICLE_RADIUS))),
             MeshMaterial2d(materials.add(Color::WHITE)),
-            Transform::from_xyz(world_pos.x, world_pos.y, 0.0),
+            Transform::from_xyz(world_pos.x, world_pos.y, 0.0)
+                .with_scale(Vec3::splat(pour.current_scale)),
         )).id();
         pour.active_circle = Some(new_entity);
     } else if let Some(entity) = pour.active_circle {
         // Hold still — grow the circle
+        pour.current_scale += GROW_SPEED * time.delta_secs();
+
         if let Ok(mut transform) = transforms.get_mut(entity) {
-            transform.scale += Vec3::splat(GROW_SPEED * time.delta_secs());
+            transform.scale = Vec3::splat(pour.current_scale);
         }
     }
 
