@@ -1,13 +1,11 @@
 use bevy::{prelude::*, window::PrimaryWindow};
 use crate::cup::CupInnerRadius;
-use crate::physics::Velocity;
 
 const PARTICLE_RADIUS: f32 = 5.0;
 const GROW_SPEED: f32 = 3.0;
 const SHRINK_SPEED: f32 = 2.0;
 const MOVE_THRESHOLD: f32 = 0.01;
 const MIN_SCALE: f32 = 1.0;
-const SPREAD_SPEED: f32 = 60.0;
 
 pub struct ParticlePlugin;
 
@@ -71,16 +69,9 @@ fn pour_milk(
     }
 
     if pour.active.is_none() || moving {
-        let outward = if world_pos.length() > 0.1 { world_pos.normalize() } else { Vec2::X };
-        let angle_vary = (world_pos.x * 7.3 + world_pos.y * 13.7).sin() * 0.4;
-        let spread_dir = Vec2::new(
-            outward.x * angle_vary.cos() - outward.y * angle_vary.sin(),
-            outward.x * angle_vary.sin() + outward.y * angle_vary.cos(),
-        );
-
         pour.active = Some(spawn_particle(
             &mut commands, &mut meshes, &mut materials,
-            world_pos, pour.scale, spread_dir * SPREAD_SPEED,
+            world_pos, pour.scale,
         ));
     } else if let Some(entity) = pour.active {
         if let Ok(mut transform) = transforms.get_mut(entity) {
@@ -91,17 +82,15 @@ fn pour_milk(
     pour.last_pos = Some(world_pos);
 }
 
-pub fn spawn_particle(
+fn spawn_particle(
     commands: &mut Commands,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
     pos: Vec2,
     scale: f32,
-    initial_velocity: Vec2,
 ) -> Entity {
     commands.spawn((
         Particle,
-        Velocity(initial_velocity),
         Mesh2d(meshes.add(Circle::new(PARTICLE_RADIUS))),
         MeshMaterial2d(materials.add(Color::WHITE)),
         Transform::from_xyz(pos.x, pos.y, 0.0).with_scale(Vec3::splat(scale)),
