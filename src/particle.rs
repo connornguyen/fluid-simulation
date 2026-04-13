@@ -12,13 +12,17 @@ pub struct ParticlePlugin;
 impl Plugin for ParticlePlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(PourState::default())
+            .insert_resource(PourVolume { current: 0.0, max: 0.0 })
             .add_systems(Startup, spawn_ui)
-            .add_systems(Update, (pour_milk, clear_particles));
+            .add_systems(Update, (pour_milk, clear_particles, update_volume_text));
     }
 }
 
 #[derive(Component)]
 pub struct Particle;
+
+#[derive(Component)]
+struct VolumeText;
 
 #[derive(Resource)]
 pub struct PourState {
@@ -33,7 +37,26 @@ impl Default for PourState {
     }
 }
 
+#[derive(Resource)]
+struct PourVolume {
+    current: f32,
+    max: f32,
+}
+
 fn spawn_ui(mut commands: Commands) {
+    // Volume % above the cup (centered)
+    commands.spawn((
+        VolumeText,
+        Text::new("0%"),
+        Node {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(30.0),
+            left: Val::Px(30.0),
+            ..default()
+        },
+    ));
+
+    // Hint text bottom left
     commands.spawn((
         Text::new("Press R to clear"),
         Node {
@@ -45,17 +68,30 @@ fn spawn_ui(mut commands: Commands) {
     ));
 }
 
+fn update_volume_text(
+    volume: Res<PourVolume>,
+    mut text: Query<&mut Text, With<VolumeText>>,
+) {
+    if volume.max == 0.0 { return; }
+    let pct = (volume.current / volume.max * 100.0).min(100.0) as u32;
+    if let Ok(mut t) = text.single_mut() {
+        **t = format!("{}%", pct);
+    }
+}
+
 fn clear_particles(
     mut commands: Commands,
     keyboard: Res<ButtonInput<KeyCode>>,
     particles: Query<Entity, With<Particle>>,
     mut pour: ResMut<PourState>,
+    mut volume: ResMut<PourVolume>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyR) {
         for entity in &particles {
             commands.entity(entity).despawn();
         }
         *pour = PourState::default();
+        volume.current = 0.0;
     }
 }
 
@@ -69,10 +105,21 @@ fn pour_milk(
     mut pour: ResMut<PourState>,
     mut transforms: Query<&mut Transform>,
     cup: Res<CupInnerRadius>,
+    mut volume: ResMut<PourVolume>,
     time: Res<Time>,
 ) {
+    // Set max volume lazily on first frame
+    if volume.max == 0.0 {
+        volume.max = (cup.0 / PARTICLE_RADIUS).powi(2);
+    }
+
     if !mouse_button.pressed(MouseButton::Left) {
         *pour = PourState::default();
+        return;
+    }
+
+    // Stop pouring when cup is full
+    if volume.current >= volume.max {
         return;
     }
 
@@ -96,6 +143,7 @@ fn pour_milk(
     }
 
     if pour.active.is_none() || moving {
+        volume.current += pour.scale * pour.scale;
         pour.active = Some(spawn_particle(
             &mut commands, &mut meshes, &mut materials,
             world_pos, pour.scale,
