@@ -23,7 +23,7 @@ fn setup(
     commands.spawn(Camera2d);
 
     let window = window.single().unwrap();
-    let radius = window.width() / 10.0; // diameter = 1/5 of screen width
+    let radius = window.width() / 5.0; // diameter = 2/5 of screen width
 
     commands.spawn((
         Mesh2d(meshes.add(Annulus::new(radius - 5.0, radius))),
@@ -55,7 +55,7 @@ fn draw_line(
                         let angle = delta.y.atan2(delta.x);
 
                         commands.spawn((
-                            Mesh2d(meshes.add(Rectangle::new(length, 2.0))),
+                            Mesh2d(meshes.add(Circle::new(5.0))),
                             MeshMaterial2d(materials.add(Color::WHITE)),
                             Transform::from_xyz(mid.x, mid.y, 0.0)
                                 .with_rotation(Quat::from_rotation_z(angle)),
