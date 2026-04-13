@@ -1,25 +1,23 @@
 use bevy::{prelude::*, window::PrimaryWindow};
 
 const PARTICLE_RADIUS: f32 = 5.0;
-const SPAWN_INTERVAL: f32 = 0.05;
-const GRAVITY: f32 = -500.0;
+const GROW_SPEED: f32 = 2.0;
+const MOVE_THRESHOLD: f32 = 1.0;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_systems(Startup, setup)
-        .add_systems(Update, (spawn_particles, apply_gravity))
-        .insert_resource(MouseState::default())
+        .add_systems(Update, pour_milk)
+        .insert_resource(PourState::default())
         .run();
 }
 
 #[derive(Resource, Default)]
-struct MouseState {
-    timer: f32,
+struct PourState {
+    last_pos: Option<Vec2>,
+    active_circle: Option<Entity>,
 }
-
-#[derive(Component)]
-struct Velocity(Vec2);
 
 fn setup(
     mut commands: Commands,
@@ -39,44 +37,60 @@ fn setup(
     ));
 }
 
-fn spawn_particles(
+fn pour_milk(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mouse_button: Res<ButtonInput<MouseButton>>,
     window: Query<&Window, With<PrimaryWindow>>,
     camera: Query<(&Camera, &GlobalTransform)>,
-    mut mouse_state: ResMut<MouseState>,
+    mut pour: ResMut<PourState>,
+    mut transforms: Query<&mut Transform>,
     time: Res<Time>,
 ) {
     let window = window.single().unwrap();
     let (camera, camera_transform) = camera.single().unwrap();
 
-    if mouse_button.pressed(MouseButton::Left) {
-        mouse_state.timer += time.delta_secs();
+    if !mouse_button.pressed(MouseButton::Left) {
+        // Released — leave the circle on screen, reset state
+        pour.active_circle = None;
+        pour.last_pos = None;
+        return;
+    }
 
-        if mouse_state.timer >= SPAWN_INTERVAL {
-            mouse_state.timer = 0.0;
+    let Some(cursor_pos) = window.cursor_position() else { return };
+    let Ok(world_pos) = camera.viewport_to_world_2d(camera_transform, cursor_pos) else { return };
 
-            if let Some(cursor_pos) = window.cursor_position() {
-                if let Ok(world_pos) = camera.viewport_to_world_2d(camera_transform, cursor_pos) {
-                    commands.spawn((
-                        Mesh2d(meshes.add(Circle::new(PARTICLE_RADIUS))),
-                        MeshMaterial2d(materials.add(Color::WHITE)),
-                        Transform::from_xyz(world_pos.x, world_pos.y, 0.0),
-                        Velocity(Vec2::ZERO),
-                    ));
-                }
-            }
+    // Spawn circle on first press
+    if pour.active_circle.is_none() {
+        let entity = commands.spawn((
+            Mesh2d(meshes.add(Circle::new(PARTICLE_RADIUS))),
+            MeshMaterial2d(materials.add(Color::WHITE)),
+            Transform::from_xyz(world_pos.x, world_pos.y, 0.0),
+        )).id();
+        pour.active_circle = Some(entity);
+        pour.last_pos = Some(world_pos);
+        return;
+    }
+
+    let moving = pour.last_pos
+        .map(|last| world_pos.distance(last) >= MOVE_THRESHOLD)
+        .unwrap_or(false);
+
+    if moving {
+        // Deposit current circle where it is, spawn fresh small one at cursor
+        let new_entity = commands.spawn((
+            Mesh2d(meshes.add(Circle::new(PARTICLE_RADIUS))),
+            MeshMaterial2d(materials.add(Color::WHITE)),
+            Transform::from_xyz(world_pos.x, world_pos.y, 0.0),
+        )).id();
+        pour.active_circle = Some(new_entity);
+    } else if let Some(entity) = pour.active_circle {
+        // Hold still — grow the circle
+        if let Ok(mut transform) = transforms.get_mut(entity) {
+            transform.scale += Vec3::splat(GROW_SPEED * time.delta_secs());
         }
-    } else {
-        mouse_state.timer = 0.0;
     }
-}
 
-fn apply_gravity(mut query: Query<(&mut Velocity, &mut Transform)>, time: Res<Time>) {
-    for (mut velocity, mut transform) in &mut query {
-        velocity.0.y += GRAVITY * time.delta_secs();
-        transform.translation.y += velocity.0.y * time.delta_secs();
-    }
+    pour.last_pos = Some(world_pos);
 }
