@@ -17,6 +17,7 @@ fn main() {
         .add_systems(Startup, setup)
         .add_systems(Update, pour_milk)
         .insert_resource(PourState::default())
+        .insert_resource(CupInnerRadius(0.0))
         .run();
 }
 
@@ -37,17 +38,23 @@ impl Default for PourState {
     }
 }
 
+#[derive(Resource)]
+struct CupInnerRadius(f32);
+
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     window: Query<&Window, With<PrimaryWindow>>,
+    mut cup: ResMut<CupInnerRadius>,
 ) {
     commands.spawn(Camera2d);
 
     let radius = window.single().unwrap().width() / CUP_RADIUS_RATIO;
+    cup.0 = radius - CUP_THICKNESS;
+
     commands.spawn((
-        Mesh2d(meshes.add(Annulus::new(radius - CUP_THICKNESS, radius))),
+        Mesh2d(meshes.add(Annulus::new(cup.0, radius))),
         MeshMaterial2d(materials.add(Color::WHITE)),
         Transform::default(),
     ));
@@ -62,6 +69,7 @@ fn pour_milk(
     camera: Query<(&Camera, &GlobalTransform)>,
     mut pour: ResMut<PourState>,
     mut transforms: Query<&mut Transform>,
+    cup: Res<CupInnerRadius>,
     time: Res<Time>,
 ) {
     if !mouse_button.pressed(MouseButton::Left) {
@@ -73,6 +81,11 @@ fn pour_milk(
     let (camera, camera_transform) = camera.single().unwrap();
     let Some(cursor_pos) = window.cursor_position() else { return };
     let Ok(world_pos) = camera.viewport_to_world_2d(camera_transform, cursor_pos) else { return };
+
+    // Stop spawning if cursor is outside the cup
+    if world_pos.length() > cup.0 {
+        return;
+    }
 
     let moving = pour.last_pos
         .map(|last| world_pos.distance(last) >= MOVE_THRESHOLD)
