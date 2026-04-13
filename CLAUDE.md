@@ -64,3 +64,25 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+## 5. Commit Message Format
+
+**Always use Conventional Commits format for every git commit.**
+
+```
+<type>: <short description>
+```
+
+| Type | When to use |
+|------|-------------|
+| `feat:` | New feature added |
+| `fix:` | Bug fix |
+| `chore:` | Maintenance, config, dependencies |
+| `refactor:` | Code restructure, no behavior change |
+| `docs:` | Documentation only |
+| `style:` | Formatting, no logic change |
+
+Examples:
+- `feat: add mouse particle spawning on click-and-drag`
+- `fix: correct world space coordinate conversion`
+- `chore: add CLAUDE.md coding guidelines`
