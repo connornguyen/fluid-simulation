@@ -12,7 +12,8 @@ pub struct ParticlePlugin;
 impl Plugin for ParticlePlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(PourState::default())
-            .add_systems(Update, pour_milk);
+            .add_systems(Startup, spawn_ui)
+            .add_systems(Update, (pour_milk, clear_particles));
     }
 }
 
@@ -29,6 +30,32 @@ pub struct PourState {
 impl Default for PourState {
     fn default() -> Self {
         Self { last_pos: None, active: None, scale: MIN_SCALE }
+    }
+}
+
+fn spawn_ui(mut commands: Commands) {
+    commands.spawn((
+        Text::new("Press R to clear"),
+        Node {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(12.0),
+            left: Val::Px(12.0),
+            ..default()
+        },
+    ));
+}
+
+fn clear_particles(
+    mut commands: Commands,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    particles: Query<Entity, With<Particle>>,
+    mut pour: ResMut<PourState>,
+) {
+    if keyboard.just_pressed(KeyCode::KeyR) {
+        for entity in &particles {
+            commands.entity(entity).despawn();
+        }
+        *pour = PourState::default();
     }
 }
 
