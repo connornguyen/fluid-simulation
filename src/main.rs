@@ -1,9 +1,14 @@
 use bevy::{prelude::*, window::PrimaryWindow};
 
+// --- Cup ---
+const CUP_RADIUS_RATIO: f32 = 5.0; // cup diameter = 2/5 of screen width
+const CUP_THICKNESS: f32 = 5.0;
+
+// --- Milk particles ---
 const PARTICLE_RADIUS: f32 = 5.0;
 const GROW_SPEED: f32 = 2.0;
 const SHRINK_SPEED: f32 = 3.0;
-const MOVE_THRESHOLD: f32 = 0.1;
+const MOVE_THRESHOLD: f32 = 0.05;
 const MIN_SCALE: f32 = 1.0;
 
 fn main() {
@@ -15,20 +20,20 @@ fn main() {
         .run();
 }
 
+// Marks an entity as a milk particle (useful for future systems)
+#[derive(Component)]
+struct Particle;
+
 #[derive(Resource)]
 struct PourState {
     last_pos: Option<Vec2>,
-    active_circle: Option<Entity>,
-    current_scale: f32,
+    active: Option<Entity>,
+    scale: f32,
 }
 
 impl Default for PourState {
     fn default() -> Self {
-        Self {
-            last_pos: None,
-            active_circle: None,
-            current_scale: MIN_SCALE,
-        }
+        Self { last_pos: None, active: None, scale: MIN_SCALE }
     }
 }
 
@@ -40,13 +45,11 @@ fn setup(
 ) {
     commands.spawn(Camera2d);
 
-    let window = window.single().unwrap();
-    let radius = window.width() / 5.0;
-
+    let radius = window.single().unwrap().width() / CUP_RADIUS_RATIO;
     commands.spawn((
-        Mesh2d(meshes.add(Annulus::new(radius - 5.0, radius))),
+        Mesh2d(meshes.add(Annulus::new(radius - CUP_THICKNESS, radius))),
         MeshMaterial2d(materials.add(Color::WHITE)),
-        Transform::from_xyz(0.0, 0.0, 0.0),
+        Transform::default(),
     ));
 }
 
@@ -61,56 +64,50 @@ fn pour_milk(
     mut transforms: Query<&mut Transform>,
     time: Res<Time>,
 ) {
+    if !mouse_button.pressed(MouseButton::Left) {
+        *pour = PourState::default();
+        return;
+    }
+
     let window = window.single().unwrap();
     let (camera, camera_transform) = camera.single().unwrap();
-
-    if !mouse_button.pressed(MouseButton::Left) {
-        // Released — leave circle on screen, reset state but keep scale
-        pour.active_circle = None;
-        pour.last_pos = None;
-        pour.current_scale = MIN_SCALE;
-        return;
-    }
-
     let Some(cursor_pos) = window.cursor_position() else { return };
     let Ok(world_pos) = camera.viewport_to_world_2d(camera_transform, cursor_pos) else { return };
-
-    // Spawn circle on first press
-    if pour.active_circle.is_none() {
-        let entity = commands.spawn((
-            Mesh2d(meshes.add(Circle::new(PARTICLE_RADIUS))),
-            MeshMaterial2d(materials.add(Color::WHITE)),
-            Transform::from_xyz(world_pos.x, world_pos.y, 0.0)
-                .with_scale(Vec3::splat(pour.current_scale)),
-        )).id();
-        pour.active_circle = Some(entity);
-        pour.last_pos = Some(world_pos);
-        return;
-    }
 
     let moving = pour.last_pos
         .map(|last| world_pos.distance(last) >= MOVE_THRESHOLD)
         .unwrap_or(false);
 
+    // Update scale based on movement
     if moving {
-        // Shrink scale, spawn new circle at cursor inheriting current scale
-        pour.current_scale = (pour.current_scale - SHRINK_SPEED * time.delta_secs()).max(MIN_SCALE);
+        pour.scale = (pour.scale - SHRINK_SPEED * time.delta_secs()).max(MIN_SCALE);
+    } else {
+        pour.scale += GROW_SPEED * time.delta_secs();
+    }
 
-        let new_entity = commands.spawn((
-            Mesh2d(meshes.add(Circle::new(PARTICLE_RADIUS))),
-            MeshMaterial2d(materials.add(Color::WHITE)),
-            Transform::from_xyz(world_pos.x, world_pos.y, 0.0)
-                .with_scale(Vec3::splat(pour.current_scale)),
-        )).id();
-        pour.active_circle = Some(new_entity);
-    } else if let Some(entity) = pour.active_circle {
-        // Hold still — grow the circle
-        pour.current_scale += GROW_SPEED * time.delta_secs();
-
+    // Spawn a new particle or update the existing one
+    if pour.active.is_none() || moving {
+        pour.active = Some(spawn_particle(&mut commands, &mut meshes, &mut materials, world_pos, pour.scale));
+    } else if let Some(entity) = pour.active {
         if let Ok(mut transform) = transforms.get_mut(entity) {
-            transform.scale = Vec3::splat(pour.current_scale);
+            transform.scale = Vec3::splat(pour.scale);
         }
     }
 
     pour.last_pos = Some(world_pos);
+}
+
+fn spawn_particle(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+    pos: Vec2,
+    scale: f32,
+) -> Entity {
+    commands.spawn((
+        Particle,
+        Mesh2d(meshes.add(Circle::new(PARTICLE_RADIUS))),
+        MeshMaterial2d(materials.add(Color::WHITE)),
+        Transform::from_xyz(pos.x, pos.y, 0.0).with_scale(Vec3::splat(scale)),
+    )).id()
 }
