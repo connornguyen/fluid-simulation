@@ -6,9 +6,9 @@ const CUP_THICKNESS: f32 = 5.0;
 
 // --- Milk particles ---
 const PARTICLE_RADIUS: f32 = 5.0;
-const GROW_SPEED: f32 = 2.0;
-const SHRINK_SPEED: f32 = 3.0;
-const MOVE_THRESHOLD: f32 = 0.05;
+const GROW_SPEED: f32 = 3.0;
+const SHRINK_SPEED: f32 = 2.0;
+const MOVE_THRESHOLD: f32 = 0.01;
 const MIN_SCALE: f32 = 1.0;
 
 fn main() {
@@ -91,11 +91,15 @@ fn pour_milk(
         .map(|last| world_pos.distance(last) >= MOVE_THRESHOLD)
         .unwrap_or(false);
 
+    // Max scale = how much room is left between particle center and cup wall
+    let distance_from_center = world_pos.length();
+    let max_scale = (cup.0 - distance_from_center) / PARTICLE_RADIUS;
+
     // Update scale based on movement
     if moving {
         pour.scale = (pour.scale - SHRINK_SPEED * time.delta_secs()).max(MIN_SCALE);
     } else {
-        pour.scale += GROW_SPEED * time.delta_secs();
+        pour.scale = (pour.scale + GROW_SPEED * time.delta_secs()).min(max_scale);
     }
 
     // Spawn a new particle or update the existing one
