@@ -19,7 +19,7 @@ fn setup(
     let radius = window.width() / 10.0; // diameter = 1/5 of screen width
 
     commands.spawn((
-        Mesh2d(meshes.add(Circle::new(radius))),
+        Mesh2d(meshes.add(Annulus::new(radius - 5.0, radius))),
         MeshMaterial2d(materials.add(Color::WHITE)),
         Transform::from_xyz(0.0, 0.0, 0.0),
     ));
