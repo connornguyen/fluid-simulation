@@ -27,9 +27,18 @@ fn setup(
     let radius = window.single().unwrap().width() / CUP_RADIUS_RATIO;
     cup.0 = radius - CUP_THICKNESS;
 
+    // Cup rim
     commands.spawn((
         Mesh2d(meshes.add(Annulus::new(cup.0, radius))),
         MeshMaterial2d(materials.add(Color::WHITE)),
-        Transform::default(),
+        Transform::from_xyz(0.0, 0.0, 1.0),
+    ));
+
+    // Coffee fill (z = 0, behind milk particles at z = 0.5)
+    let coffee_color = Color::srgb(0.35, 0.18, 0.07);
+    commands.spawn((
+        Mesh2d(meshes.add(Circle::new(cup.0))),
+        MeshMaterial2d(materials.add(coffee_color)),
+        Transform::from_xyz(0.0, 0.0, 0.0),
     ));
 }

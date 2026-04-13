@@ -4,7 +4,7 @@ use crate::cup::CupInnerRadius;
 const PARTICLE_RADIUS: f32 = 5.0;
 const GROW_SPEED: f32 = 3.0;
 const SHRINK_SPEED: f32 = 2.0;
-const MOVE_THRESHOLD: f32 = 0.01;
+const MOVE_THRESHOLD: f32 = 0.005;
 const MIN_SCALE: f32 = 1.0;
 
 pub struct ParticlePlugin;
@@ -92,7 +92,7 @@ fn spawn_particle(
     commands.spawn((
         Particle,
         Mesh2d(meshes.add(Circle::new(PARTICLE_RADIUS))),
-        MeshMaterial2d(materials.add(Color::WHITE)),
-        Transform::from_xyz(pos.x, pos.y, 0.0).with_scale(Vec3::splat(scale)),
+        MeshMaterial2d(materials.add(Color::srgb(1.0, 0.95, 0.8))),
+        Transform::from_xyz(pos.x, pos.y, 0.5).with_scale(Vec3::splat(scale)),
     )).id()
 }
