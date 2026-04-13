@@ -1,13 +1,14 @@
 use bevy::{prelude::*, window::PrimaryWindow};
 
 const PARTICLE_RADIUS: f32 = 5.0;
-const SPAWN_INTERVAL: f32 = 0.05; // spawn a particle every 50ms
+const SPAWN_INTERVAL: f32 = 0.05;
+const GRAVITY: f32 = -500.0;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_systems(Startup, setup)
-        .add_systems(Update, spawn_particles)
+        .add_systems(Update, (spawn_particles, apply_gravity))
         .insert_resource(MouseState::default())
         .run();
 }
@@ -16,6 +17,9 @@ fn main() {
 struct MouseState {
     timer: f32,
 }
+
+#[derive(Component)]
+struct Velocity(Vec2);
 
 fn setup(
     mut commands: Commands,
@@ -26,7 +30,7 @@ fn setup(
     commands.spawn(Camera2d);
 
     let window = window.single().unwrap();
-    let radius = window.width() / 5.0; // diameter = 2/5 of screen width
+    let radius = window.width() / 5.0;
 
     commands.spawn((
         Mesh2d(meshes.add(Annulus::new(radius - 5.0, radius))),
@@ -60,11 +64,19 @@ fn spawn_particles(
                         Mesh2d(meshes.add(Circle::new(PARTICLE_RADIUS))),
                         MeshMaterial2d(materials.add(Color::WHITE)),
                         Transform::from_xyz(world_pos.x, world_pos.y, 0.0),
+                        Velocity(Vec2::ZERO),
                     ));
                 }
             }
         }
     } else {
         mouse_state.timer = 0.0;
+    }
+}
+
+fn apply_gravity(mut query: Query<(&mut Velocity, &mut Transform)>, time: Res<Time>) {
+    for (mut velocity, mut transform) in &mut query {
+        velocity.0.y += GRAVITY * time.delta_secs();
+        transform.translation.y += velocity.0.y * time.delta_secs();
     }
 }
