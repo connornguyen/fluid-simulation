@@ -1,5 +1,5 @@
-use bevy::{prelude::*, window::PrimaryWindow};
 use crate::cup::CupInnerRadius;
+use bevy::{prelude::*, window::PrimaryWindow};
 
 const PARTICLE_RADIUS: f32 = 5.0;
 const GROW_SPEED: f32 = 3.0;
@@ -12,7 +12,10 @@ pub struct ParticlePlugin;
 impl Plugin for ParticlePlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(PourState::default())
-            .insert_resource(PourVolume { current: 0.0, max: 0.0 })
+            .insert_resource(PourVolume {
+                current: 0.0,
+                max: 0.0,
+            })
             .add_systems(Startup, spawn_ui)
             .add_systems(Update, (pour_milk, clear_particles, update_volume_text));
     }
@@ -33,7 +36,11 @@ pub struct PourState {
 
 impl Default for PourState {
     fn default() -> Self {
-        Self { last_pos: None, active: None, scale: MIN_SCALE }
+        Self {
+            last_pos: None,
+            active: None,
+            scale: MIN_SCALE,
+        }
     }
 }
 
@@ -68,11 +75,10 @@ fn spawn_ui(mut commands: Commands) {
     ));
 }
 
-fn update_volume_text(
-    volume: Res<PourVolume>,
-    mut text: Query<&mut Text, With<VolumeText>>,
-) {
-    if volume.max == 0.0 { return; }
+fn update_volume_text(volume: Res<PourVolume>, mut text: Query<&mut Text, With<VolumeText>>) {
+    if volume.max == 0.0 {
+        return;
+    }
     let pct = (volume.current / volume.max * 100.0).min(100.0) as u32;
     if let Ok(mut t) = text.single_mut() {
         **t = format!("{}%", pct);
@@ -125,14 +131,21 @@ fn pour_milk(
 
     let window = window.single().unwrap();
     let (camera, camera_transform) = camera.single().unwrap();
-    let Some(cursor_pos) = window.cursor_position() else { return };
-    let Ok(world_pos) = camera.viewport_to_world_2d(camera_transform, cursor_pos) else { return };
+    let Some(cursor_pos) = window.cursor_position() else {
+        return;
+    };
+    let Ok(world_pos) = camera.viewport_to_world_2d(camera_transform, cursor_pos) else {
+        return;
+    };
 
-    if world_pos.length() > cup.0 { return; }
+    if world_pos.length() > cup.0 {
+        return;
+    }
 
     let max_scale = (cup.0 - world_pos.length()) / PARTICLE_RADIUS;
 
-    let moving = pour.last_pos
+    let moving = pour
+        .last_pos
         .map(|last| world_pos.distance(last) >= MOVE_THRESHOLD)
         .unwrap_or(false);
 
@@ -145,8 +158,11 @@ fn pour_milk(
     if pour.active.is_none() || moving {
         volume.current += pour.scale * pour.scale;
         pour.active = Some(spawn_particle(
-            &mut commands, &mut meshes, &mut materials,
-            world_pos, pour.scale,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            world_pos,
+            pour.scale,
         ));
     } else if let Some(entity) = pour.active {
         if let Ok(mut transform) = transforms.get_mut(entity) {
@@ -164,10 +180,12 @@ fn spawn_particle(
     pos: Vec2,
     scale: f32,
 ) -> Entity {
-    commands.spawn((
-        Particle,
-        Mesh2d(meshes.add(Circle::new(PARTICLE_RADIUS))),
-        MeshMaterial2d(materials.add(Color::srgb(1.0, 0.95, 0.8))),
-        Transform::from_xyz(pos.x, pos.y, 0.5).with_scale(Vec3::splat(scale)),
-    )).id()
+    commands
+        .spawn((
+            Particle,
+            Mesh2d(meshes.add(Circle::new(PARTICLE_RADIUS))),
+            MeshMaterial2d(materials.add(Color::srgb(1.0, 0.95, 0.8))),
+            Transform::from_xyz(pos.x, pos.y, 0.5).with_scale(Vec3::splat(scale)),
+        ))
+        .id()
 }
